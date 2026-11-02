@@ -1,0 +1,192 @@
+<!--
+  CleverTap Custom HTML In-App — BASIC TEMPLATE
+  ----------------------------------------------
+  Replace TITLE, MESSAGE, CTA_LABEL, and event names with campaign-specific values.
+  Keep dismissCampaign() exactly as-is unless you've read references/dismiss-methods.md.
+
+  Dashboard checklist:
+  - Template: Custom HTML
+  - "Enable JavaScript": CHECKED
+  - "Enable click tracking for Custom HTML": UNCHECKED (this template fires clicks manually)
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>In-App</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: transparent !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  .overlay {
+    position: fixed; inset: 0;
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 999999;
+    animation: fadeIn 0.3s ease-out;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .card {
+    position: relative;
+    width: min(320px, 90vw);
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px 24px 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    text-align: center;
+    animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes slideUp {
+    from { transform: translateY(20px) scale(0.95); opacity: 0; }
+    to   { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  .close-btn {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.08);
+    border: none;
+    color: #555;
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #111;
+    margin-bottom: 8px;
+  }
+
+  .message {
+    font-size: 15px;
+    line-height: 1.5;
+    color: #555;
+    margin-bottom: 24px;
+  }
+
+  .cta {
+    width: 100%;
+    padding: 14px 24px;
+    font-size: 15px;
+    font-weight: 600;
+    background: #6366f1;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .cta:active { transform: scale(0.98); }
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay">
+  <div class="card">
+    <button class="close-btn" onclick="dismissCampaign()" aria-label="Close">✕</button>
+    <div class="title">TITLE</div>
+    <div class="message">MESSAGE — your in-app body text goes here.</div>
+    <button class="cta" onclick="handleCTA()">CTA_LABEL</button>
+  </div>
+</div>
+
+<script>
+  // ===== CleverTap In-App dismiss (with old-SDK fallback) =====
+  // Uses iOS / Android native bridges. If neither native bridge matches
+  // (e.g. old Android SDK without dismissInAppNotification), falls back
+  // to the legacy wzrk:// dummy-link trick.
+  function dismissCampaign() {
+    var modernPathCalled = false;
+
+    // iOS
+    try {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.clevertap) {
+        window.webkit.messageHandlers.clevertap.postMessage({ action: 'dismissInAppNotification' });
+        modernPathCalled = true;
+      }
+    } catch (e) {}
+
+    // Android (modern SDK)
+    try {
+      if (window.CleverTap && typeof window.CleverTap.dismissInAppNotification === 'function') {
+        window.CleverTap.dismissInAppNotification();
+        modernPathCalled = true;
+      }
+    } catch (e) {}
+
+
+    // Visual hide so close "feels" instant regardless of SDK behaviour
+    var ov = document.getElementById('overlay');
+    if (ov) ov.style.display = 'none';
+
+    // Legacy Android fallback — only if no modern path matched
+    if (!modernPathCalled) {
+      setTimeout(function() {
+        try { window.location.href = 'wzrk://dismiss'; } catch (e) {}
+      }, 100);
+    }
+  }
+
+  // ===== Universal event tracker =====
+  // Android and iOS use different event APIs. The final clevertap.event.push
+  // fallback is retained for non-native preview/fallback environments.
+  // Event names + triggers come from the USER. Replace these placeholders with the
+  // exact strings they gave you; if the brief didn't specify, ASK before shipping.
+  var EVT_VIEWED  = 'TODO_EVENT_VIEWED';   // fired on load (impression)
+  var EVT_CLICKED = 'TODO_EVENT_CLICKED';  // fired on CTA tap
+
+  function trackEvent(name, props) {
+    // Android
+    try {
+      if (window.CleverTap && typeof window.CleverTap.pushEvent === 'function') {
+        window.CleverTap.pushEvent(name, JSON.stringify(props || {}));
+        return;
+      }
+    } catch (e) {}
+    // iOS
+    try {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.clevertap) {
+        window.webkit.messageHandlers.clevertap.postMessage({
+          action: 'recordEventWithProps',
+          event: name,
+          properties: props || {}
+        });
+        return;
+      }
+    } catch (e) {}
+    // Web Pop-up
+    try {
+      if (typeof clevertap !== 'undefined' && clevertap.event) {
+        clevertap.event.push(name, props || {});
+      }
+    } catch (e) {}
+  }
+
+  // ===== CTA handler =====
+  function handleCTA() {
+    trackEvent(EVT_CLICKED /* TODO: confirm event name with user */, {
+      // Add campaign-specific properties here
+    });
+    dismissCampaign();
+  }
+
+  // ===== Impression event =====
+  trackEvent(EVT_VIEWED /* TODO: confirm event name with user */, {
+    // Add campaign-specific properties here
+  });
+</script>
+
+</body>
+</html>
